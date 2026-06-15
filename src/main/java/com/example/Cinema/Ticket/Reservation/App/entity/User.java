@@ -14,7 +14,7 @@ public class User {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Email(message = "Please enter a valid email address!") // ضيف دي
+    @Email(message = "Please enter a valid email address!") 
     @Column(name = "email", nullable = false)
     private String email;
 
