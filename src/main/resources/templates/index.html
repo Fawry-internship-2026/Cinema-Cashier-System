@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Cinema Cashier System</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .seat-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr); /* 5 أعمدة متساوية */
+            gap: 10px;
+            justify-content: center;
+            margin-top: 15px;
+        }
+        .seat-box {
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 8px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: 0.3s;
+            color: white;
+        }
+        .seat-available { background-color: #198754; } /* أخضر */
+        .seat-available:hover { background-color: #146c43; transform: scale(1.1); }
+        .seat-booked { background-color: #dc3545; cursor: not-allowed; opacity: 0.7; } /* أحمر */
+        .seat-selected { background-color: #0d6efd; border: 2px solid #000; } /* أزرق لما الكاشير يختاره */
+    </style>
+</head>
+<body class="bg-light">
+
+<div class="container mt-5">
+    <h1 class="text-center mb-4 text-primary">🎬 Cinema Cashier System</h1>
+
+    <!-- قسم بيانات الفيلم والصالة -->
+    <div class="card shadow-sm mb-5 border-0 bg-dark text-white rounded-4 overflow-hidden">
+        <div class="row g-0">
+            <div class="col-md-4">
+                <!-- استدعاء الصورة من فولدر static -->
+                <img src="/images/poster.jpg" class="img-fluid rounded-start h-100 object-fit-cover" alt="Movie Poster">
+            </div>
+            <div class="col-md-8 d-flex align-items-center">
+                <div class="card-body p-5">
+                    <h2 class="card-title text-warning fw-bold mb-3">🎬 7 Dogs</h2>
+                    <h5 class="card-text mb-2">📍 Hall: <span class="badge bg-danger fs-6">Neptune</span></h5>
+                    <h5 class="card-text mb-4">📅 Date: <span class="text-info" th:text="${todayDate}"></span></h5>
+                    <p class="card-text text-light opacity-75">
+                        Cashier Booking System. Select an available showtime below to process customer tickets.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="row">
+        <div class="col-md-6">
+            <div class="card shadow-sm">
+                <div class="card-header bg-dark text-white">
+                    <h5>Available Show Times</h5>
+                </div>
+                <div class="card-body">
+                    <table class="table table-striped">
+                        <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Date</th>
+                            <th>Time</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        <tr th:each="show : ${showTimes}">
+                            <td th:text="${show.id}"></td>
+                            <td th:text="${show.date}"></td>
+                            <td th:text="${show.time}"></td>
+                        </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-6">
+            <div class="card shadow-sm">
+                <div class="card-header bg-success text-white">
+                    <h5>Book a Ticket</h5>
+                </div>
+                <div class="card-body">
+                    <form id="bookingForm">
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Customer Email</label>
+                            <input type="email" class="form-control" id="email" placeholder="customer@example.com" required>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Select Show Time</label>
+                            <select class="form-select" id="showTimeId" required onchange="loadSeatMap()">
+                                <option value="" disabled selected>-- Choose a Time --</option>
+                                <option th:each="show : ${showTimes}" th:value="${show.id}" th:text="${show.time}"></option>
+                            </select>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Cinema Hall (Screen Top)</label>
+                            <div class="bg-dark text-white text-center py-1 mb-3 rounded">SCREEN</div>
+
+                            <div id="seatGrid" class="seat-grid"></div>
+
+                            <input type="hidden" id="seatId" required>
+                            <div id="selectedSeatLabel" class="text-primary fw-bold mt-2 text-center"></div>
+                        </div>
+
+                        <button type="submit" class="btn btn-success w-100">Confirm Booking</button>
+                    </form>
+
+                    <div id="resultMessage" class="mt-3 alert d-none"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.getElementById('bookingForm').addEventListener('submit', function(e) {
+        e.preventDefault(); // نمنع الصفحة تعمل Refresh
+
+        const data = {
+            email: document.getElementById('email').value,
+            showTimeId: document.getElementById('showTimeId').value,
+            seatId: document.getElementById('seatId').value
+        };
+
+        // بنكلم الـ Endpoint اللي تعبنا فيها
+        fetch('/api/reservations', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        })
+        .then(async response => {
+            const result = await response.json();
+            const msgDiv = document.getElementById('resultMessage');
+            msgDiv.classList.remove('d-none', 'alert-success', 'alert-danger');
+
+            if (response.ok) {
+                msgDiv.classList.add('alert-success');
+                msgDiv.innerText = "✅ " + result.message + " (ID: " + result.reservationId + ")";
+
+                // رسالة تأكيد للكاشير
+                alert("🎉 Ticket Booked Successfully for: " + data.email);
+
+                // نعمل ريفريش للخريطة عشان الكرسي يقلب أحمر
+                loadSeatMap();
+            } else {
+                msgDiv.classList.add('alert-danger');
+                msgDiv.innerText = "❌ " + result.message;
+                alert("Error: " + result.message);
+            }
+        });
+    });
+
+    // دي هتشتغل أول ما الكاشير يختار ميعاد من الـ Dropdown
+    function loadSeatMap() {
+        const showTimeId = document.getElementById('showTimeId').value;
+        const seatGrid = document.getElementById('seatGrid');
+        seatGrid.innerHTML = ''; // نفضي القديم
+        document.getElementById('seatId').value = '';
+        document.getElementById('selectedSeatLabel').innerText = 'Please click on a green seat.';
+
+        if(!showTimeId) return;
+
+        fetch(`/api/show-times/${showTimeId}/seat-map`)
+            .then(res => res.json())
+            .then(seats => {
+                seats.forEach(seat => {
+                    const seatDiv = document.createElement('div');
+                    seatDiv.innerText = seat.id;
+                    seatDiv.classList.add('seat-box');
+
+                    if (seat.available) {
+                        seatDiv.classList.add('seat-available');
+                        seatDiv.onclick = function() {
+                            // نشيل الاختيار من الكراسي التانية
+                            document.querySelectorAll('.seat-box').forEach(el => el.classList.remove('seat-selected'));
+                            // نختار ده
+                            seatDiv.classList.add('seat-selected');
+                            document.getElementById('seatId').value = seat.id;
+                            document.getElementById('selectedSeatLabel').innerText = `Selected Seat ID: ${seat.id} (Row: ${seat.row}, Col: ${seat.column})`;
+                        };
+                    } else {
+                        seatDiv.classList.add('seat-booked');
+                        seatDiv.title = 'Already Booked';
+                    }
+                    seatGrid.appendChild(seatDiv);
+                });
+            });
+    }
+</script>
+
+</body>
+</html>
